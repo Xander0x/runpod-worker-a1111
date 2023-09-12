@@ -30,6 +30,21 @@ API_SCHEMA = {
             'controlnet/model_list',
             'sdapi/v1/refresh-checkpoints',
             'sdapi/v1/refresh-loras'
+            'sam/heartbeat',
+            'sam/sam-model',
+            'sam/sam-predict',
+            'sam/sam/dino-predict',
+            'sam/dilate-mask',
+            'sam/controlnet-seg',
+            'sam/category-mask'
         ]
+    }, 
+  'autosam_conf': {
+        'type': dict,
+        'required': False,
+        'constraints': lambda autosam_conf, api: api['endpoint'] in [
+            'sam/controlnet-seg',
+            'sam/category-mask'
+        ] if autosam_conf else True
     }
 }

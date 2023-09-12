@@ -8,6 +8,9 @@ from schemas.api import API_SCHEMA
 from schemas.img2img import IMG2IMG_SCHEMA
 from schemas.txt2img import TXT2IMG_SCHEMA
 from schemas.options import OPTIONS_SCHEMA
+from schemas.controlnetseg import CONTROL_NET_SEG_REQUEST_SCHEMA
+from schemas.autosamconfig import AUTOSAM_CONFIG_SCHEMA
+from schemas.categorymask import CATEGORY_MASK_REQUEST_SCHEMA
 
 BASE_URL = 'http://127.0.0.1:3000'
 TIMEOUT = 600
@@ -73,21 +76,49 @@ def validate_api(event):
 
     return validate(api, API_SCHEMA)
 
-
 def validate_payload(event):
     method = event['input']['api']['method']
     endpoint = event['input']['api']['endpoint']
     payload = event['input']['payload']
-    validated_input = payload
+    autosam_conf = event['input']['api'].get('autosam_conf')
 
-    if endpoint == 'txt2img':
-        validated_input = validate(payload, TXT2IMG_SCHEMA)
-    elif endpoint == 'img2img':
-        validated_input = validate(payload, IMG2IMG_SCHEMA)
-    elif endpoint == 'options' and method == 'POST':
-        validated_input = validate(payload, OPTIONS_SCHEMA)
+    # List of endpoints that require autosam_conf
+    endpoints_requiring_autosam_conf = [
+        'sam/controlnet-seg',
+        'sam/category-mask'
+    ]
 
-    return endpoint, event['input']['api']['method'], validated_input
+    # Validate autosam_conf if the endpoint requires it
+    if endpoint in endpoints_requiring_autosam_conf:
+        if not autosam_conf:
+            return {
+                'error': 'autosam_conf is required for this endpoint'
+            }
+    elif autosam_conf:
+        return {
+            'error': 'autosam_conf is not required for this endpoint'
+        }
+
+    schemas = {
+        'txt2img': TXT2IMG_SCHEMA,
+        'img2img': IMG2IMG_SCHEMA,
+        'options': OPTIONS_SCHEMA,
+        'sam/controlnet-seg': CONTROL_NET_SEG_REQUEST_SCHEMA,
+        'sam/category-mask': CATEGORY_MASK_REQUEST_SCHEMA,
+    }
+
+    validated_input = validate(payload, schemas.get(endpoint))
+    if 'error' in validated_input:
+        return validated_input
+
+    if endpoint in endpoints_requiring_autosam_conf:
+        validated_autosam_conf = validate(autosam_conf, AUTOSAM_CONFIG_SCHEMA)
+        if 'error' in validated_autosam_conf:
+            return {'error': validated_autosam_conf['error']}
+        validated_input['autosam_conf'] = validated_autosam_conf['validated_input']
+
+    return endpoint, method, validated_input
+
 
 
 # ---------------------------------------------------------------------------- #
@@ -101,17 +132,19 @@ def handler(event):
             'error': validated_api['errors']
         }
 
-    endpoint, method, validated_input = validate_payload(event)
+    validated_payload = validate_payload(event)
 
-    if 'errors' in validated_input:
+    if 'error' in validated_payload:
         return {
-            'error': validated_input['errors']
+            'error': validated_payload['error']
         }
 
-    if 'validated_input' in validated_input:
-        payload = validated_input['validated_input']
-    else:
-        payload = validated_input
+    endpoint, method, validated_input = validated_payload
+
+    payload = validated_input.get('validated_input', validated_input)
+    autosam_conf = validated_input.get('autosam_conf')
+    if autosam_conf:
+        payload['autosam_conf'] = autosam_conf
 
     try:
         logger.log(f'Sending {method} request to: /{endpoint}')
@@ -125,7 +158,18 @@ def handler(event):
             'error': str(e)
         }
 
-    return response.json()
+    if response.status_code != 200:
+        return {
+            'error': f'Request failed with status code {response.status_code}: {response.text}'
+        }
+
+    try:
+        return response.json()
+    except ValueError:
+        return {
+            'error': 'Response is not in JSON format'
+        }
+
 
 
 if __name__ == "__main__":
