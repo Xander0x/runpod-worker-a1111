@@ -38,13 +38,5 @@ API_SCHEMA = {
             'sam/controlnet-seg',
             'sam/category-mask'
         ]
-    }, 
-  'autosam_conf': {
-        'type': dict,
-        'required': False,
-        'constraints': lambda autosam_conf, api: api['endpoint'] in [
-            'sam/controlnet-seg',
-            'sam/category-mask'
-        ] if autosam_conf else True
     }
 }

@@ -74,7 +74,14 @@ def validate_api(event):
 
     api['endpoint'] = api['endpoint'].lstrip('/')
 
+    endpoint = api['endpoint']
+    if endpoint in ['sam/controlnet-seg', 'sam/category-mask']:
+        if 'autosam_conf' not in event['input']:
+            return {'errors': 'autosam_conf is required for this endpoint'}
+        # Optionally, add any additional validation for autosam_conf here
+
     return validate(api, API_SCHEMA)
+
 
 def validate_payload(event):
     method = event['input']['api']['method']
