@@ -33,7 +33,7 @@ API_SCHEMA = {
             'sam/heartbeat',
             'sam/sam-model',
             'sam/sam-predict',
-            'sam/sam/dino-predict',
+            'sam/dino-predict',
             'sam/dilate-mask',
             'sam/controlnet-seg',
             'sam/category-mask'
